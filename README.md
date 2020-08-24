@@ -5,6 +5,8 @@ EZNet 0.1
 EZNet is a simple low overhead networking C# codebase. Aimed at developers
 comfortable with programming who don't want to deal with boilerplate code.
 
+Ready built for the Unity Engine. Core networking code works for any C# program.
+
 # Features
 
 - TCP & UDP socket client/server model.
@@ -14,6 +16,7 @@ comfortable with programming who don't want to deal with boilerplate code.
 - Minimal packet overhead, no lazy serialization. 
 - Create your own custom packet structures.
 - Bind scene Objects & Scripts to networked data.
+- Ready Made example and usage code for Unity.
 
 # Quick Start : Demo Scene Localhost Test
 
