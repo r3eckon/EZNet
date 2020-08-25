@@ -83,7 +83,6 @@ namespace EZNet
                     cid = byte.Parse(NetCMD.ExtractArgs(cmd.command));
                     cidinit = true;
                     DebugLog("Received CID From Server : " + cid);
-                    SendCommand("/udpinit " + udpport);
                     break;
 
                 case NetCMD.TEST:
@@ -91,9 +90,21 @@ namespace EZNet
                     break;
 
                 case NetCMD.UDPINIT:
+                    SendCommandUDP("/udpinit");
+                    break;
+
                 default:
                     break;
             }
+        }
+
+        //Mostly useless since commands are important however the UDPINIT command relies on sending a datagram to expose remote endpoint to the server 
+        public void SendCommandUDP(string cmd)
+        {
+            cmdtosend.command = cmd;
+            pts = new Packet();
+            pts.data = PacketUtils.Pack(cmdtosend.EncodeRaw(), PacketUtils.GenerateHeader(cid, NetData.TYPE_CMD, 0, cmdtosend.GetLength()));
+            UDPout.Enqueue(pts);
         }
 
 
@@ -183,6 +194,7 @@ namespace EZNet
                     {
                         if (TCPout.TryDequeue(out lastPacket))
                         {
+                            tcp.SendBufferSize = lastPacket.data.Length;
                             tcp.Send(lastPacket.data);
                         }
                     }
@@ -214,6 +226,7 @@ namespace EZNet
                     {
                         if (UDPout.TryDequeue(out lastPacket))
                         {
+                            udp.SendBufferSize = lastPacket.data.Length;
                             udp.SendTo(lastPacket.data, serverUDPep);
                         }
 

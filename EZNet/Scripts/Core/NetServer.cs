@@ -99,8 +99,6 @@ namespace EZNet
                     break;
 
                 case NetCMD.UDPINIT:
-                    clients[cid].udpep.Port = int.Parse(NetCMD.ExtractArgs(cmd.command));
-                    clients[cid].udpinit = true;
                     DebugLog("[" + cid + "]" + "UDP Socket Initialized on port " + clients[cid].udpep.Port);
                     break;
 
@@ -201,6 +199,7 @@ namespace EZNet
                 while(!clients.TryAdd(newClient.id, newClient));//Keep trying to add new client
 
                 SendCommand(newClient.id, "/setid " + newClient.id);
+                SendCommand(newClient.id, "/udpinit");
 
                 DebugLog("[" + System.DateTime.Now.ToShortTimeString() + "]" + "Client ID " + newClient.id + " Connected from " + newClient.tcpep.Address.MapToIPv4().ToString());
             }
@@ -264,6 +263,7 @@ namespace EZNet
                 while (TCPOut.Count > 0)
                 {
                     TCPOut.TryDequeue(out lastPacket);
+                    clients[lastPacket.cid].tcpsock.SendBufferSize = lastPacket.data.Length;
                     clients[lastPacket.cid].tcpsock.Send(lastPacket.data);
                 }
             }
@@ -273,6 +273,7 @@ namespace EZNet
         {
             Packet lastPacket;
             int lastavail;
+            EndPoint lastep;
 
             while (running)
             {
@@ -280,11 +281,19 @@ namespace EZNet
                 //Receive
                 if ((lastavail = udpdata.Available) > 0)
                 {
-                    DebugLog("Incoming UDP Data!");
+                    lastep = new IPEndPoint(IPAddress.Any, udpport);
                     lastPacket = new Packet();
                     lastPacket.data = new byte[lastavail];
-                    udpdata.Receive(lastPacket.data);
+                    udpdata.ReceiveFrom(lastPacket.data, ref lastep);
                     lastPacket.cid = lastPacket.data[0];
+
+                    //Automatic UDP handshake
+                    if (!clients[lastPacket.cid].udpinit)
+                    {
+                        clients[lastPacket.cid].udpep = (IPEndPoint)lastep;
+                        clients[lastPacket.cid].udpinit = true;
+                    }
+
                     UDPin.Enqueue(lastPacket);
                 }
 
@@ -294,7 +303,10 @@ namespace EZNet
                     UDPOut.TryDequeue(out lastPacket);
 
                     if (clients[lastPacket.cid].udpinit)
+                    {
+                        udpdata.SendBufferSize = lastPacket.data.Length;
                         udpdata.SendTo(lastPacket.data, clients[lastPacket.cid].udpep);
+                    }
                     else
                         DebugLog("ERROR SENDING PACKET : CLIENT " + lastPacket.cid + " HAS NOT SENT UDP INIT COMMAND");
 
