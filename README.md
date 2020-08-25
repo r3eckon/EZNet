@@ -1,5 +1,3 @@
-EZNet 0.1
-
 # Introduction
 
 EZNet is a simple low overhead networking C# codebase. Aimed at developers
