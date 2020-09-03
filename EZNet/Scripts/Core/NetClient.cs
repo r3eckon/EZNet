@@ -98,11 +98,18 @@ namespace EZNet
             }
         }
 
+        public void SendTCP(IPacket p)
+        {
+            Packet pts = new Packet();
+            pts.data = PacketUtils.Pack(cid, p);
+            TCPout.Enqueue(pts);
+        }
+
         //Mostly useless since commands are important however the UDPINIT command relies on sending a datagram to expose remote endpoint to the server 
         public void SendCommandUDP(string cmd)
         {
             cmdtosend.command = cmd;
-            pts = new Packet();
+            Packet pts = new Packet();
             pts.data = PacketUtils.Pack(cmdtosend.EncodeRaw(), PacketUtils.GenerateHeader(cid, NetData.TYPE_CMD, 0, cmdtosend.GetLength()));
             UDPout.Enqueue(pts);
         }
@@ -113,7 +120,7 @@ namespace EZNet
         public void SendCommand(string cmd)
         {
             cmdtosend.command = cmd;
-            pts = new Packet();
+            Packet pts = new Packet();
             pts.data = PacketUtils.Pack(cmdtosend.EncodeRaw(), PacketUtils.GenerateHeader(cid, NetData.TYPE_CMD, 0, cmdtosend.GetLength()));
             TCPout.Enqueue(pts);
         }
@@ -125,7 +132,7 @@ namespace EZNet
             ttosend.position = t.localPosition;
             ttosend.rotation = t.localRotation.eulerAngles;
             ttosend.scale = t.localScale;
-            pts = new Packet();
+            Packet pts = new Packet();
             pts.data = PacketUtils.Pack(ttosend.EncodeRaw(), PacketUtils.GenerateHeader(cid, NetData.TYPE_NETTRANSFORM, id, ttosend.GetLength()));
             UDPout.Enqueue(pts);
         }
@@ -170,6 +177,7 @@ namespace EZNet
             udp.Dispose();
         }
 
+        byte[][] tcpsplit;
         public void TCPLoop()
         {
             Packet lastPacket;
@@ -184,7 +192,14 @@ namespace EZNet
                     lastPacket = new Packet();
                     lastPacket.data = new byte[lastavail];
                     tcp.Receive(lastPacket.data);
-                    OnReceive(lastPacket.data);
+
+                    tcpsplit = PacketUtils.PacketSplit(lastPacket.data);
+
+                    for (int i = 0; i < tcpsplit.GetLength(0); i++)
+                    {
+                        lastPacket.data = tcpsplit[i];
+                        OnReceive(lastPacket.data);
+                    }
                 }
 
                 if (cidinit)

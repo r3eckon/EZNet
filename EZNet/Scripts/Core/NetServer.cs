@@ -210,7 +210,7 @@ namespace EZNet
         public void SendCommand(byte cid, string cmd )
         {
             cmdtosend.command = cmd;
-            pts = new Packet();
+            Packet pts = new Packet();
             pts.data = PacketUtils.Pack(cmdtosend.EncodeRaw(), PacketUtils.GenerateHeader(0, NetData.TYPE_CMD, 0, cmdtosend.GetLength()));
             pts.cid = cid;
             TCPOut.Enqueue(pts);
@@ -219,7 +219,7 @@ namespace EZNet
 
         public void SendTransform(byte cid, NetData.ID_NETTRANSFORM transformid)
         {
-            pts = new Packet();
+            Packet pts = new Packet();
             pts.cid = cid;
             pts.data = PacketUtils.Pack(cid, netdata.NETTRANSFORM[(byte)transformid]);
             UDPOut.Enqueue(pts);
@@ -234,10 +234,46 @@ namespace EZNet
             }
         }
 
+        public void SendTCP(byte cid, IPacket p)
+        {
+            Packet pts = new Packet();
+            pts.cid = cid;
+            pts.data = PacketUtils.Pack(cid, p);
+            TCPOut.Enqueue(pts);
+        }
+
+        public void SendAllTCP(IPacket p)
+        {
+            foreach (ConnectedClient c in clients.Values)
+            {
+                SendTCP(c.id, p);
+            }
+        }
+
+        public void SendUDP(byte cid, IPacket p)
+        {
+            Packet pts = new Packet();
+            pts.cid = cid;
+            pts.data = PacketUtils.Pack(cid, p);
+            UDPOut.Enqueue(pts);
+        }
+
+        public void SendAllUDP(IPacket p)
+        {
+            foreach (ConnectedClient c in clients.Values)
+            {
+                if(c.udpinit)
+                    SendUDP(c.id, p);
+            }
+        }
+
+
         void DebugLog(string t)
         {
             LOG.Enqueue(t);
         }
+
+        byte[][] tcpsplit;
 
         void TCPDataLoop()
         {
@@ -255,16 +291,26 @@ namespace EZNet
                         lastPacket.cid = c.id;
                         lastPacket.data = new byte[lastavail];
                         c.tcpsock.Receive(lastPacket.data);
-                        TCPin.Enqueue(lastPacket);
+
+                        tcpsplit = PacketUtils.PacketSplit(lastPacket.data);
+
+                        for (int i = 0; i < tcpsplit.GetLength(0); i++)
+                        {
+                            lastPacket.data = tcpsplit[i];
+                            TCPin.Enqueue(lastPacket);
+                        }
                     }
                 }
 
                 //Send
                 while (TCPOut.Count > 0)
                 {
-                    TCPOut.TryDequeue(out lastPacket);
-                    clients[lastPacket.cid].tcpsock.SendBufferSize = lastPacket.data.Length;
-                    clients[lastPacket.cid].tcpsock.Send(lastPacket.data);
+                    if (TCPOut.TryDequeue(out lastPacket))
+                    {
+                        clients[lastPacket.cid].tcpsock.SendBufferSize = lastPacket.data.Length;
+                        clients[lastPacket.cid].tcpsock.Send(lastPacket.data);
+                    }
+
                 }
             }
         }
@@ -285,7 +331,7 @@ namespace EZNet
                     lastPacket = new Packet();
                     lastPacket.data = new byte[lastavail];
                     udpdata.ReceiveFrom(lastPacket.data, ref lastep);
-                    lastPacket.cid = lastPacket.data[0];
+                    lastPacket.cid = lastPacket.data[2];
 
                     //Automatic UDP handshake
                     if (!clients[lastPacket.cid].udpinit)

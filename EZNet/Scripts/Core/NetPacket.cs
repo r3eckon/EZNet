@@ -49,7 +49,7 @@ namespace EZNet
     {
         byte GetPacketType();
         byte GetID();
-        short GetLength();
+        ushort GetLength();
         byte[] EncodeRaw();
         void DecodeRaw(byte[] raw);
     }
@@ -74,7 +74,7 @@ namespace EZNet
         public static byte[] Pack(byte cid, IPacket p)
         {
             lastPack = new byte[p.GetLength() + HEADERSIZE];
-            Array.Copy(GenerateHeader(cid,p), lastPack, HEADERSIZE);
+            Array.Copy(GenerateHeader(cid, p), lastPack, HEADERSIZE);
             Array.ConstrainedCopy(p.EncodeRaw(), 0, lastPack, HEADERSIZE, p.GetLength());
             return lastPack;
         }
@@ -87,41 +87,87 @@ namespace EZNet
             return lastUnpack;
         }
 
-        public static byte[] GenerateHeader(byte cid, byte type, byte id, short length)
+        static byte[][] toRetSplit;
+        static Dictionary<uint, byte[]> splitdict;
+        static ushort left, ccount;
+        static uint pcount;
+        public static byte[][] PacketSplit(byte[] full)
+        {
+            pcount = 0;
+            left = (ushort)full.Length;
+            splitdict = new Dictionary<uint, byte[]>();
+
+            while (left > 1)
+            {
+                ccount = BytesToUShort(full[full.Length - left], full[full.Length - left + 1]);
+                if (ccount == 0)
+                    break;
+                splitdict.Add(pcount, new byte[ccount]);
+                Array.ConstrainedCopy(full, full.Length - left, splitdict[pcount], 0, ccount);
+                left -= ccount;
+                pcount++;
+            }
+
+            toRetSplit = new byte[splitdict.Keys.Count][];
+
+            foreach (uint k in splitdict.Keys)
+            {
+                toRetSplit[k] = splitdict[k];
+            }
+
+            return toRetSplit;
+
+
+        }
+
+        public static byte[] GenerateHeader(byte cid, byte type, byte id, ushort length)
         {
             byte[] toret = new byte[5];
-            toret[0] = cid;
-            toret[1] = type;
-            toret[2] = id;
-            toret[3] = (byte)(length << 8 >> 8);
-            toret[4] = (byte)(length >> 8);
+            toret[0] = (byte)((length + HEADERSIZE) << 8 >> 8);
+            toret[1] = (byte)((length + HEADERSIZE) >> 8);
+            toret[2] = cid;
+            toret[3] = type;
+            toret[4] = id;
             return toret;
         }
 
         public static byte[] GenerateHeader(byte cid, IPacket p)
         {
             byte[] toret = new byte[5];
-            toret[0] = cid;
-            toret[1] = p.GetPacketType();
-            toret[2] = p.GetID();
-            toret[3] = (byte)(p.GetLength() << 8 >> 8);
-            toret[4] = (byte)(p.GetLength() >> 8);
+            toret[0] = (byte)((p.GetLength() + HEADERSIZE) << 8 >> 8);
+            toret[1] = (byte)((p.GetLength() + HEADERSIZE) >> 8);
+            toret[2] = cid;
+            toret[3] = p.GetPacketType();
+            toret[4] = p.GetID();
             return toret;
         }
 
         static PacketHeader toRetHeader = new PacketHeader();
         public static PacketHeader ReadHeader(byte[] raw)
         {
-            toRetHeader.cid = raw[0];
-            toRetHeader.type = raw[1];
-            toRetHeader.id = raw[2];
-            toRetHeader.length = BytesToShort(raw[3], raw[4]);
+            toRetHeader.length = BytesToUShort(raw[0], raw[1]);
+            toRetHeader.cid = raw[2];
+            toRetHeader.type = raw[3];
+            toRetHeader.id = raw[4];
             return toRetHeader;
         }
 
         public static short BytesToShort(params byte[] b)
         {
             return (short)((b[1] << 8) | b[0]);
+        }
+
+        public static ushort BytesToUShort(params byte[] b)
+        {
+            return (ushort)((b[1] << 8) | b[0]);
+        }
+
+        public static byte[] UShortToBytes(ushort val)
+        {
+            byte[] toRet = new byte[2];
+            toRet[0] = (byte)(val << 8 >> 8);
+            toRet[1] = (byte)(val >> 8);
+            return toRet;
         }
 
         public static byte[] ShortToBytes(short val)
@@ -139,7 +185,7 @@ namespace EZNet
         public byte cid;
         public byte type;
         public byte id;
-        public short length;
+        public ushort length;
     }
 
     
