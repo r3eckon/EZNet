@@ -1,8 +1,6 @@
-EZNet 0.1
-
 # Introduction
 
-EZNet is a simple low overhead networking C# codebase. Aimed at developers
+EZNet is a tiny low overhead networking C# codebase. Aimed at developers
 comfortable with programming who don't want to deal with boilerplate code.
 
 Ready built for the Unity Engine. Core networking code works for any C# program.
