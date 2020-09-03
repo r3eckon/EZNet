@@ -150,12 +150,20 @@ Without this the Update() method will execute before the NetClient or NetServer 
 You are almost ready to start using the created packet structure. 
 Inside the NetClient and/or NetServer class (this depends on what you need) :
 
-	1. 	Create a new SendMyData() style function. Add any parameters you need, such as Client ID.
+1A 		Create a new SendMyData() style function. Add any parameters you need, such as Client ID.
 		This function can then instantiate a NetPacket class and set the CID to the input parameter.
 		The important part is to then set the NetPacket.data value to the result of PacketUtils.Pack()
 		And finally use either the TCPOut or UDPOut threaded queues to send using TCP or UDP.
 
-	2. 	Add a new case inside the OnReceive() function for your NetData.TYPE 
+OR
+
+1B		Use the universal SendTCP() or SendUDP() functions. These functions take in a IPacket implementing class.
+		They are well suited for most uses and queue the packet passed in for sending on the picked send queue.
+		However, being universal, they are not suited for executing other lines of code before or after send.
+		This is why for network actions that do more than just send data, it's better use the 1A steps.
+
+
+2. 		Add a new case inside the OnReceive() function for your NetData.TYPE 
 		What you do next is case dependent, however the idea is to create an instance of your packet structure class.
 		Then calling the MyPacketStructure.DecodeRaw() function passing in the p.data array received from the network.
 		Finally, either directly update the datastore using the data stored in phtemp to set data for the correct ID.
@@ -190,3 +198,20 @@ This is best in cases where particular IDs are attributed to particular clients.
 Another way to deal with this is to filter NetData types & ids and to perform further actions than simply editing the datastore.
 For instance clients can rely on a single common "SelfTransform" ID to send their own position and the server can 
 sort based on Client ID and put the data into a client specific datastore. 
+
+## Unity Engine Function Calls & Threading
+
+As the Unity engine does not allow for MonoBehavior components to be manipulated by any thread other than the main thread,
+It is wise to create (delegate) functions that take in your different types of packets and call them using a "Threaded Signal" Queue.
+Threaded Signals may be as simple as a single byte that represents a type of network action that just occured, with some attached data.
+
+For example, when a client has just connected, the threaded server cannot directly call functions that update UI components, such as a lobby screen.
+In this case, the ID of the new client would be sent to a ConcurrentQueue containing the "ClientConnectSignal" objects. 
+Inside the BasicNetManager, a loop running inside the Monobehavior Update() method Dequeues those signals and calls the function that processes this type of signal.
+In the case of our example, it would call a function that adds a new player slot to the lobby player list and show the ID of the connected client as text.
+
+One such lists is already implemented in the BasicNetManager : the threaded log queue. Server & Client enqueue log messages, which are dequeued on the main thread.
+For anything that does not need a single, immediate execution upon receiving data, the NetData datastore is fine. 
+Log messages only need to be written once to console. Lobby only needs to read the updated data when it just updated.
+But a bound transform would not benefit from signals. It simply has to constantly read the latest received data, which is already main thread safe.
+
