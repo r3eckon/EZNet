@@ -48,11 +48,11 @@ This is NOT a replacement for the unet network transform. More on this later.
 
 These two packet structure classes implement the IPacket interface. This interface contains the following methods:
 
-	    byte GetPacketType();		Returns structure TYPE value, ex : NetData.TYPE_CMD or NetData.TYPE_NETTRANSFORM
+	byte GetPacketType();		Returns structure TYPE value, ex : NetData.TYPE_CMD or NetData.TYPE_NETTRANSFORM
 
         byte GetID();				Returns data store ID value, ex : NetData.ID_NETTRANSFORM.TestTransform
 
-        short GetLength();			Returns the length of the array that will be returned by EncodeRaw()
+        ushort GetLength();			Returns the length of the array that will be returned by EncodeRaw()
 
         byte[] EncodeRaw();			Main encoding step. Take class variables and shove them into a byte array.
 
@@ -85,11 +85,11 @@ You now have created and added a new Packet Structure to the codebase and it is 
 As you can see, there is no universal serialization in order to avoid the extra overhead. 
 Besides the byte array returned by EncodeRaw(), packets must be Pack()'d with 5 bytes of header data : 
 
-	First byte represents the CLIENT ID value. This is a unique client identifier used by the server to know who sent a packet.
-	Second byte represents the TYPE value. This is the value returned by GetPacketType(). Used to correctly read packets.
-	Third byte represents the ID value. This is the value returned by GetID(). Used to know which object the packet represents.
-	Finally the fourth and fifth bytes are used to store the short typed LENGTH returned by GetLength()
-
+	First and second bytes are used to store the ushort typed LENGTH returned by GetLength()
+	Third byte represents the CLIENT ID value. This is a unique client identifier used by the server to know who sent a packet.
+	Fourth byte represents the TYPE value. This is the value returned by GetPacketType(). Used to correctly read packets.
+	Fifth byte represents the ID value. This is the value returned by GetID(). Used to know which object the packet represents.
+	
 The Pack() function takes in a CID value and a IPacket type parameter, which means any class implementing IPacket can be passed.
 This function returns a final byte array that is now ready to send using either TCP or UDP. Nothing else is added.
  
@@ -203,7 +203,6 @@ sort based on Client ID and put the data into a client specific datastore.
 
 As the Unity engine does not allow for MonoBehavior components to be manipulated by any thread other than the main thread,
 It is wise to create (delegate) functions that take in your different types of packets and call them using a "Threaded Signal" Queue.
-Threaded Signals may be as simple as a single byte that represents a type of network action that just occured, with some attached data.
 
 For example, when a client has just connected, the threaded server cannot directly call functions that update UI components, such as a lobby screen.
 In this case, the ID of the new client would be sent to a ConcurrentQueue containing the "ClientConnectSignal" objects. 
@@ -211,7 +210,7 @@ Inside the BasicNetManager, a loop running inside the Monobehavior Update() meth
 In the case of our example, it would call a function that adds a new player slot to the lobby player list and show the ID of the connected client as text.
 
 One such lists is already implemented in the BasicNetManager : the threaded log queue. Server & Client enqueue log messages, which are dequeued on the main thread.
-For anything that does not need a single, immediate execution upon receiving data, the NetData datastore is fine. 
-Log messages only need to be written once to console. Lobby only needs to read the updated data when it just updated.
-But a bound transform would not benefit from signals. It simply has to constantly read the latest received data, which is already main thread safe.
+For anything that does not need a single immediate execution upon receiving data, simply reading from the NetData datastore is better. 
+Log messages only need to be written once to console. Lobby only needs to read the new data when it has just been updated.
+A bound transform would not benefit from signals. It simply has to constantly read the latest received data, which is already main thread safe.
 
